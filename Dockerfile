@@ -32,9 +32,13 @@ RUN git clone https://github.com/lcompilers/lpython.git && \
 FROM amazonlinux:2 as final
 
 RUN yum -y update && \
-    yum -y install htop vim python3.10 && \
+    yum -y install htop vim python3.10 httpd && \
     yum clean all && \
     rm -rf /var/cache/yum
 
 COPY --from=build /lpython/lpython/inst/bin /usr/local/bin
 COPY --from=build /lpython/lpython/inst/share /usr/local/share
+
+EXPOSE 80
+
+CMD ["/usr/sbin/httpd", "-D", "FOREGROUND"]
