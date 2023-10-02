@@ -2,6 +2,7 @@ name: Build Golden Image
 
 on:
   workflow_dispatch:
+    # checkov:skip=CKV_GHA_7: Allow manual workflow execution to create golden container image.
     inputs:
       push_to_registry:
         description: Push to registry
