@@ -13,6 +13,9 @@ on:
         description: lpython version
         required: true
         default: '0.20.0'
+      image_version:
+        description: image version
+        required: true
 
 permissions: read-all
 
@@ -59,11 +62,10 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
           tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.image_version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.SHA_SHORT }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             LPYTHON_VERSION=${{ inputs.lpython_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           pull: true
           push: ${{ inputs.push_to_registry }}
