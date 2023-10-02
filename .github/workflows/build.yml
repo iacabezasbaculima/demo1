@@ -1,0 +1,63 @@
+name: Build Golden Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_to_registry:
+        description: Push to registry
+        required: true
+        default: false
+        type: boolean
+      lpython_version:
+        description: lpython version
+        required: true
+        default: '0.20.0'
+
+permissions: read-all
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/demo1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+
+      - name: Set up version tag
+        run: echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - name: Login into GitHub Registry
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        with:
+          version: latest
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: ./images
+          platforms: |
+            linux/amd64
+            linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.SHA_SHORT }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            LPYTHON_VERSION=${{ inputs.lpython_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          pull: true
+          push: ${{ inputs.push_to_registry }}
