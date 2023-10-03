@@ -1,0 +1,124 @@
+name: Terraform CI
+
+on:
+  # checkov:skip=CKV_GHA_7: Manual workflow required to run Terraform apply.
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - terraform/**.tf
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-ci:
+    name: Terraform CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+
+      - name: Checkov Static Analysis
+        uses: bridgecrewio/checkov-action@master
+        with:
+          framework: terraform
+          directory: terraform
+          quiet: true
+          compact: true
+          output_format: github_failed_only
+          download_external_modules: true
+
+      - name: TFSec Static Analysis
+        uses: aquasecurity/tfsec-action@b466648d6e39e7c75324f25d83891162a721f2d6 # v1.0.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: terraform
+
+      - name: Set the Terraform Cloud Workspace
+        run: |
+          {
+            echo "TF_CLOUD_ORGANIZATION=iacabezasbaculima";
+            echo "TF_WORKSPACE=demo1";
+            echo "TF_API_TOKEN=${{ secrets.TF_API_TOKEN }}";
+            echo "TF_WORK_DIR=terraform"
+          } >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Upload Configuration
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        id: upload
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.TF_WORK_DIR }}
+          speculative: ${{ github.event_name == 'pull_request' && true || false }}
+
+      - name: Create Plan Run
+        if: github.event_name == 'pull_request'
+        uses: hashicorp/tfc-workflows-github/actions/create-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        continue-on-error: true
+        id: plan-run
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          plan_only: true
+
+      - name: Get Plan Output
+        if: github.event_name == 'pull_request'
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        id: plan-output
+        with:
+          plan: ${{ fromJSON(steps.plan-run.outputs.payload).data.relationships.plan.data.id }}
+
+      - name: Update Pull Request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Cloud Plan Output')
+            });
+            const output = `#### Terraform Cloud Plan Output
+              \`\`\`
+              Plan: ${{ steps.plan-output.outputs.add }} to add, ${{ steps.plan-output.outputs.change }} to change, ${{ steps.plan-output.outputs.destroy }} to destroy.
+              \`\`\`
+              [Terraform Cloud Plan](${{ steps.plan-run.outputs.run_link }})
+              `;
+            // 3. Delete previous comment so PR timeline makes sense
+            if (botComment) {
+              github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+              });
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Create Apply Run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+        id: apply-run
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+
+      - name: Confirm Apply Run
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && fromJSON(steps.apply-run.outputs.payload).data.attributes.actions.IsConfirmable
+        id: confirm-apply
+        with:
+          run: ${{ steps.apply-run.outputs.run_id }}
+          comment: "Apply Run from GitHub Actions CI ${{ github.sha }}"
