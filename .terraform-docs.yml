@@ -1,0 +1,41 @@
+formatter: "markdown table"
+
+recursive:
+  enabled: false
+
+sort:
+  enabled: true
+  by: name
+
+content: |-
+  {{ .Requirements }}
+
+  {{ .Providers }}
+
+  {{ .Modules }}
+
+  {{ .Resources }}
+
+  {{ .Inputs }}
+
+  {{ .Outputs }}
+
+output:
+  file: "README.md"
+  mode: inject
+  template: |-
+    <!-- BEGIN_TF_DOCS -->
+    {{ .Content }}
+    <!-- END_TF_DOCS -->
+
+settings:
+  anchor: true # Generate HTML anchor tag for elements
+  default: true # Show “Default” value as column (in table format) or section (in document format)
+  escape: true # Escape special characters (such as _, * in Markdown and >, < in JSON)
+  hide-empty: false # Hide empty sections
+  html: true # Generate HTML tags (a, pre, br, …) in the output
+  indent: 2 # Indentation level of headings [available: 1, 2, 3, 4, 5]
+  read-comments: true # Use comments from tf files for “Description” column (for inputs and outputs) when description is empty
+  required: false # Show “Required” as column (in table format) or section (in document format)
+  sensitive: true # Show “Sensitive” as column (in table format) or section (in document format)
+  type: true # Show “Type” as column (in table format) or section (in document format)

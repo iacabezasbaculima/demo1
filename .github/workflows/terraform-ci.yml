@@ -1,0 +1,157 @@
+name: Terraform CI
+
+on:
+  # checkov:skip=CKV_GHA_7: Manual workflow required to run Terraform plan/apply.
+  workflow_dispatch:
+    inputs:
+      destroy_plan:
+        description: run a destroy plan
+        required: true
+        default: false
+        type: boolean
+  pull_request:
+    branches: [main]
+    paths:
+      - terraform/**.tf
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+  pull-requests: write # This is required to publish TF plan/apply output
+  issues: write # This is required to publish TF plan/apply output
+
+jobs:
+  terraform-ci:
+    name: Terraform CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+
+      - name: Checkov Static Analysis
+        uses: bridgecrewio/checkov-action@master
+        with:
+          framework: terraform
+          directory: terraform
+          quiet: true # display only failed checks
+          compact: true # do not display code blocks in output
+          output_format: github_failed_only
+          download_external_modules: true
+
+      - name: TFSec Static Analysis
+        uses: aquasecurity/tfsec-action@b466648d6e39e7c75324f25d83891162a721f2d6 # v1.0.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: terraform
+
+      - name: Setup AWS credentials
+        uses: aws-actions/configure-aws-credentials@8c3f20df09ac63af7b3ae3d7c91f105f857d8497 # v4.0.0
+        with:
+          role-to-assume: arn:aws:iam::062998752389:role/demo1-oidc-role
+          aws-region: eu-west-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # v2.0.3
+
+      - run: terraform fmt -check
+        id: fmt
+        working-directory: terraform
+
+      - run: terraform init
+        id: init
+        working-directory: terraform
+
+      - run: terraform validate -no-color
+        id: validate
+        working-directory: terraform
+
+      - name: Terraform Plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color
+        working-directory: terraform
+        continue-on-error: true
+
+      - uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6.4.1
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+            })
+
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${{ steps.validate.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve
+        working-directory: terraform
+        continue-on-error: true
+        id: apply
+
+      - name: Terraform Apply Status check
+        if: steps.apply.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.destroy_plan
+        run: terraform destroy -auto-approve
+        working-directory: terraform
+        continue-on-error: true
+        id: destroy
+
+      - name: Terraform Destroy Status check
+        if: steps.destroy.outcome == 'failure'
+        run: exit 1
