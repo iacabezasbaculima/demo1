@@ -151,7 +151,7 @@ module "service" {
   # Container definition(s)
   container_definitions = {
     (local.container_name) = {
-      image  = "public.ecr.aws/ecs-sample-image/amazon-ecs-sample:latest"
+      image  = "ghcr.io/iacabezasbaculima/demo1:0.1.0"
       cpu    = 256
       memory = 512
       port_mappings = [
