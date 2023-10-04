@@ -5,6 +5,8 @@
 - Build golden container image based on Amazon Linux 2
 - Provision ECS cluster with EC2 autoscaling that uses golden container image
 
+![logo](./images/demo.svg)
+
 ## Getting Started
 
 ### Pre-requisites

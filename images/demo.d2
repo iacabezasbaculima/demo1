@@ -1,0 +1,87 @@
+###########################################################
+# Global Settings
+###########################################################
+
+direction: right
+
+###########################################################
+# Shapes
+###########################################################
+
+github: GitHub Container Registry {
+  shape: image
+  icon: https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/github.svg
+}
+
+github_actions: GitHub Actions {
+  shape: image
+  icon: https://github.githubassets.com/images/modules/site/features/actions-icon-actions.svg
+}
+
+"build.yml": {
+  amazon-linux-2: "" {
+    shape: image
+    icon: https://d1.awsstatic.com/AmazonLinux/Amazon-Linux_logo_105x150.4eaa5b67982445554e032ef6cf5fcfa517902b75.png
+  }
+  docker: Dockerfile {
+    shape: image
+    icon: https://www.svgrepo.com/show/353659/docker-icon.svg
+  }
+}
+
+"terraform-ci.yml": {
+
+  checkov: "" {
+    shape: image
+    icon: https://raw.githubusercontent.com/bridgecrewio/checkov/main/docs/web/images/checkov_by_bridgecrew.png
+  }
+
+  tfsec: "" {
+    shape: image
+    icon: https://raw.githubusercontent.com/aquasecurity/tfsec/master/.github/images/tfsec_worded.png
+  }
+
+  terraform: Terraform Cloud {
+    shape: image
+    icon: https://icon.icepanel.io/Technology/svg/HashiCorp-Terraform.svg
+  }
+
+}
+
+aws: "" {
+  shape: image
+  icon: https://www.svgrepo.com/show/448266/aws.svg
+}
+
+###########################################################
+# Connections
+###########################################################
+
+github_actions -> "build.yml": Pipeline 1{
+  icon: https://www.svgrepo.com/show/448221/docker.svg
+  style: {
+    animated: true
+    font-size: 20
+  }
+}
+
+"build.yml" -> github: Build Golden Image {
+  style: {
+    animated: true
+    font-size: 20
+  }
+}
+
+github_actions -> "terraform-ci.yml": Pipeline 2{
+  style: {
+    animated: true
+    font-size: 20
+  }
+}
+
+"terraform-ci.yml" -> aws: Deploy IaC {
+  style: {
+    animated: true
+    font-size: 20
+  }
+}
