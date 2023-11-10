@@ -47,7 +47,7 @@ jobs:
         shell: bash
 
       - name: Upload Configuration
-        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@4e91ea58dde1e255e6cecdfd7a19c5f395538393 # v1.1.1
         id: upload
         with:
           workspace: ${{ env.TF_WORKSPACE }}
@@ -56,7 +56,7 @@ jobs:
 
       - name: Create Plan Run
         if: github.event_name == 'pull_request'
-        uses: hashicorp/tfc-workflows-github/actions/create-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        uses: hashicorp/tfc-workflows-github/actions/create-run@4e91ea58dde1e255e6cecdfd7a19c5f395538393 # v1.1.1
         continue-on-error: true
         id: plan-run
         with:
@@ -66,7 +66,7 @@ jobs:
 
       - name: Get Plan Output
         if: github.event_name == 'pull_request'
-        uses: hashicorp/tfc-workflows-github/actions/plan-output@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@4e91ea58dde1e255e6cecdfd7a19c5f395538393 # v1.1.1
         id: plan-output
         with:
           plan: ${{ fromJSON(steps.plan-run.outputs.payload).data.relationships.plan.data.id }}
@@ -108,7 +108,7 @@ jobs:
             });
 
       - name: Create Apply Run
-        uses: hashicorp/tfc-workflows-github/actions/create-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        uses: hashicorp/tfc-workflows-github/actions/create-run@4e91ea58dde1e255e6cecdfd7a19c5f395538393 # v1.1.1
         if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
         id: apply-run
         with:
@@ -116,7 +116,7 @@ jobs:
           configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
 
       - name: Confirm Apply Run
-        uses: hashicorp/tfc-workflows-github/actions/apply-run@a9b5237abdfa0d0510ad3444906147fa424bbdd9 # v1.0.4
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@4e91ea58dde1e255e6cecdfd7a19c5f395538393 # v1.1.1
         if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && fromJSON(steps.apply-run.outputs.payload).data.attributes.actions.IsConfirmable
         id: confirm-apply
         with:
